@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en-us">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Urp imran - Interactive Avatar Lip-Sync</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0c0f17;
+      --panel-bg: rgba(18, 24, 38, 0.85);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --accent-hover: #4f46e5;
+      --teal: #06b6d4;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #unity-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 50% 30%, #1e1b4b 0%, #0c0f17 80%);
+    }
+
+    #unity-canvas {
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      object-fit: contain;
+      display: block;
+      outline: none;
+    }
+
+    /* Loading Overlay */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: #090c14;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 52px;
+      height: 52px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.9s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .loading-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+    }
+    .loading-sub {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+    .progress-bar-wrap {
+      width: 240px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      margin-top: 18px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--teal));
+      transition: width 0.2s ease;
+    }
+
+    /* Top Brand Bar */
+    .top-bar {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+      pointer-events: none;
+    }
+    .brand-pill {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      padding: 8px 14px;
+      border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .brand-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px var(--emerald);
+    }
+    .brand-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .brand-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      border-left: 1px solid rgba(255,255,255,0.15);
+      padding-left: 8px;
+    }
+
+    .top-actions {
+      pointer-events: auto;
+      display: flex;
+      gap: 8px;
+    }
+    .icon-btn {
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .icon-btn:hover {
+      background: rgba(255,255,255,0.12);
+      transform: translateY(-1px);
+    }
+
+    /* Bottom Audio Control Toolbar */
+    .audio-toolbar {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(92vw, 760px);
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 14px 20px;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-main);
+      border: 1px solid var(--panel-border);
+      padding: 9px 15px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      transform: translateY(-1px);
+    }
+    .btn.primary {
+      background: linear-gradient(135deg, var(--accent), #4338ca);
+      border-color: rgba(99, 102, 241, 0.5);
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn.primary:hover {
+      background: linear-gradient(135deg, #4f46e5, #3730a3);
+    }
+    .btn.mic-active {
+      background: var(--rose) !important;
+      border-color: var(--rose) !important;
+      box-shadow: 0 0 16px rgba(244, 63, 94, 0.5);
+      animation: pulse-mic 1.5s infinite;
+    }
+    @keyframes pulse-mic {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.75; }
+    }
+
+    /* Live Voice Level Visualizer */
+    .meter-container {
+      flex: 1;
+      min-width: 140px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .meter-bar {
+      flex: 1;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--teal), var(--accent), var(--rose));
+      border-radius: 999px;
+      transition: width 0.05s ease-out;
+    }
+    .viseme-tag {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--teal);
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 2px 8px;
+      border-radius: 6px;
+      min-width: 54px;
+      text-align: center;
+    }
+
+    /* URL input modal / row */
+    .url-row {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .url-row.open { display: flex; }
+    .url-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .url-input:focus { border-color: var(--accent); }
+
+    /* Drag & Drop Overlay on Window */
+    #drop-zone {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 150;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border: 3px dashed var(--accent);
+      margin: 16px;
+      border-radius: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #drop-zone.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #drop-zone h3 { font-size: 1.5rem; margin-top: 12px; }
+    #drop-zone p { color: var(--text-muted); font-size: 0.95rem; }
+
+    @media (max-width: 640px) {
+      .audio-toolbar { bottom: 12px; padding: 12px 14px; width: 95vw; }
+      .btn { padding: 7px 11px; font-size: 0.78rem; }
+      .meter-container { width: 100%; order: 3; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Unity Canvas Container -->
+  <div id="unity-container">
+    <canvas id="unity-canvas" tabindex="-1"></canvas>
+  </div>
+
+  <!-- Loading Screen -->
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-title">Urp imran</div>
+    <div class="loading-sub" id="loading-text">Initializing 3D avatar & audio engine...</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- Top Info Bar -->
+  <div class="top-bar">
+    <div class="brand-pill">
+      <div class="brand-dot" id="status-dot"></div>
+      <span class="brand-title">EduSpark Avatar</span>
+      <span class="brand-status" id="lip-status">Ready</span>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btn-fullscreen" title="Toggle Fullscreen">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Drag and drop zone -->
+  <div id="drop-zone">
+    <svg width="48" height="48" fill="none" stroke="#6366f1" stroke-width="2" viewBox="0 0 24 24"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+    <h3>Drop Audio File Here</h3>
+    <p>Supports MP3, WAV, OGG, M4A, AAC</p>
+  </div>
+
+  <!-- Bottom Audio Toolbar -->
+  <div class="audio-toolbar">
+    <div class="toolbar-row">
+      <!-- Action buttons -->
+      <div class="btn-group">
+        <!-- File Picker -->
+        <label class="btn primary" title="Upload Audio File (MP3, WAV, OGG, M4A)">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <span>Upload Audio</span>
+          <input type="file" id="audio-file-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac" style="display:none;">
+        </label>
+
+        <!-- Live Microphone Toggle -->
+        <button class="btn" id="btn-mic" title="Speak through microphone to lip-sync in real time">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          <span id="mic-label">Live Mic</span>
+        </button>
+
+        <!-- Test Voice -->
+        <button class="btn" id="btn-test-voice" title="Play test speech sample">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          <span>Test Speech</span>
+        </button>
+
+        <!-- Audio URL Toggle -->
+        <button class="btn" id="btn-toggle-url" title="Play audio from web URL">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          <span>URL</span>
+        </button>
+
+        <!-- Stop / Mute -->
+        <button class="btn" id="btn-stop" title="Stop audio playback">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+      </div>
+
+      <!-- Live Meter & Viseme badge -->
+      <div class="meter-container">
+        <div class="meter-bar">
+          <div class="meter-fill" id="meter-fill"></div>
+        </div>
+        <div class="viseme-tag" id="viseme-tag">REST</div>
+      </div>
+    </div>
+
+    <!-- URL Input Drawer -->
+    <div class="url-row" id="url-row">
+      <input type="text" class="url-input" id="audio-url-input" placeholder="Paste direct audio URL (https://.../speech.mp3)">
+      <button class="btn primary" id="btn-play-url">Play URL</button>
+    </div>
+  </div>
+
+  <!-- Unity Loader and Setup -->
+  <script src="Build/WebGL Builds.loader.js"></script>
+  <script>
+    var canvas = document.querySelector("#unity-canvas");
+    var loadingOverlay = document.querySelector("#loading-overlay");
+    var progressFill = document.querySelector("#progress-fill");
+    var loadingText = document.querySelector("#loading-text");
+    var lipStatus = document.querySelector("#lip-status");
+    var statusDot = document.querySelector("#status-dot");
+    var meterFill = document.querySelector("#meter-fill");
+    var visemeTag = document.querySelector("#viseme-tag");
+    var btnMic = document.querySelector("#btn-mic");
+    var micLabel = document.querySelector("#mic-label");
+    var fileInput = document.querySelector("#audio-file-input");
+    var dropZone = document.querySelector("#drop-zone");
+
+    // Configure Responsive Canvas
+    function resizeCanvas() {
+      var w = window.innerWidth;
+      var h = window.innerHeight;
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    var unityConfig = {
+      arguments: [],
+      dataUrl: "Build/WebGL%20Builds.data",
+      frameworkUrl: "Build/WebGL%20Builds.framework.js",
+      codeUrl: "Build/WebGL%20Builds.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "DefaultCompany",
+      productName: "Urp imran",
+      productVersion: "0.1.0",
+    };
+
+    createUnityInstance(canvas, unityConfig, function (progress) {
+      progressFill.style.width = (100 * progress) + "%";
+      if (progress < 0.9) {
+        loadingText.textContent = "Loading WebAssembly binary & 3D assets (" + Math.round(progress * 100) + "%)...";
+      } else {
+        loadingText.textContent = "Compiling shaders & initializing scene...";
+      }
+    }).then(function (instance) {
+      window.unityInstance = instance;
+      loadingOverlay.classList.add("hidden");
+      lipStatus.textContent = "Avatar Ready";
+      console.log("[EduSpark] Unity WebGL loaded successfully.");
+    }).catch(function (err) {
+      console.error("[EduSpark] Unity initialization failed:", err);
+      loadingText.textContent = "Failed to load: " + err;
+      loadingText.style.color = "#f43f5e";
+    });
+
+    // ── AUDIO SYSTEM & BRIDGE CONTROLS ─────────────────────────────────────────
+    var isMicActive = false;
+
+    // Helper: get the WebAudio context from jslib or fallback
+    function getAudioEngine() {
+      return window.EduSpark || window.EternityAvatar || null;
+    }
+
+    // 1. Upload File Handler
+    fileInput.addEventListener("change", function (e) {
+      var file = e.target.files && e.target.files[0];
+      if (!file) return;
+      playSelectedFile(file);
+    });
+
+    function playSelectedFile(file) {
+      var engine = getAudioEngine();
+      if (engine && engine.playFile) {
+        lipStatus.textContent = "Playing: " + file.name;
+        statusDot.style.background = "#06b6d4";
+        engine.playFile(file).then(function () {
+          console.log("[EduSpark] Playing file:", file.name);
+        }).catch(function (err) {
+          alert("Error playing audio file: " + err.message);
+        });
+      } else {
+        var reader = new FileReader();
+        reader.onload = function (evt) {
+          if (engine && engine.playBuffer) {
+            engine.playBuffer(evt.target.result);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    }
+
+    // 2. Live Microphone Toggle
+    btnMic.addEventListener("click", function () {
+      var engine = getAudioEngine();
+      if (!isMicActive) {
+        if (engine && engine.startMicrophone) {
+          engine.startMicrophone().then(function () {
+            isMicActive = true;
+            btnMic.classList.add("mic-active");
+            micLabel.textContent = "Stop Mic";
+            lipStatus.textContent = "Listening to Mic";
+            statusDot.style.background = "#f43f5e";
+          }).catch(function (err) {
+            alert("Microphone permission denied or unavailable: " + err.message);
+          });
+        }
+      } else {
+        if (engine && engine.stopMicrophone) {
+          engine.stopMicrophone();
+        }
+        isMicActive = false;
+        btnMic.classList.remove("mic-active");
+        micLabel.textContent = "Live Mic";
+        lipStatus.textContent = "Avatar Ready";
+        statusDot.style.background = "#10b981";
+      }
+    });
+
+    // 3. Test Speech Generation
+    document.querySelector("#btn-test-voice").addEventListener("click", function () {
+      var phrases = [
+        "Hello! Welcome to EduSpark. My lip sync is working in WebGL now!",
+        "Education is the most powerful weapon which you can use to change the world.",
+        "I am ready to assist you. You can upload any audio file or speak into your microphone!"
+      ];
+      var text = phrases[Math.floor(Math.random() * phrases.length)];
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        var utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
+
+        // Animate procedural lip-sync during TTS speech
+        var animInterval = null;
+        utterance.onstart = function () {
+          lipStatus.textContent = "Speaking test phrase";
+          statusDot.style.background = "#6366f1";
+          if (window.unityInstance) {
+            try { window.unityInstance.SendMessage('CH', 'OnWebAudioStarted', ''); } catch (e) {}
+          }
+          var startTime = Date.now();
+          animInterval = setInterval(function () {
+            var elapsed = (Date.now() - startTime) / 1000;
+            var loud = Math.abs(Math.sin(elapsed * 12)) * 0.65 + Math.abs(Math.sin(elapsed * 19)) * 0.35;
+            meterFill.style.width = Math.min(100, Math.round(loud * 100)) + "%";
+            visemeTag.textContent = loud > 0.4 ? (elapsed % 0.4 > 0.2 ? "A" : "O") : "E";
+            if (window.unityInstance) {
+              try { window.unityInstance.SendMessage('CH', 'SetExternalLipSync', loud.toFixed(3)); } catch (e) {}
+            }
+          }, 35);
+        };
+
+        utterance.onend = utterance.onerror = function () {
+          clearInterval(animInterval);
+          meterFill.style.width = "0%";
+          visemeTag.textContent = "REST";
+          lipStatus.textContent = "Avatar Ready";
+          statusDot.style.background = "#10b981";
+          if (window.unityInstance) {
+            try {
+              window.unityInstance.SendMessage('CH', 'SetExternalLipSync', '0');
+              window.unityInstance.SendMessage('CH', 'OnWebAudioEnded', '');
+            } catch (e) {}
+          }
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } else {
+        alert("Web SpeechSynthesis not supported in this browser.");
+      }
+    });
+
+    // 4. URL Drawer & Playback
+    var urlRow = document.querySelector("#url-row");
+    document.querySelector("#btn-toggle-url").addEventListener("click", function () {
+      urlRow.classList.toggle("open");
+    });
+
+    document.querySelector("#btn-play-url").addEventListener("click", function () {
+      var url = document.querySelector("#audio-url-input").value.trim();
+      if (!url) return;
+      var engine = getAudioEngine();
+      if (engine && engine.playUrl) {
+        lipStatus.textContent = "Loading URL audio...";
+        engine.playUrl(url).then(function () {
+          lipStatus.textContent = "Playing remote audio";
+          statusDot.style.background = "#06b6d4";
+        }).catch(function (err) {
+          alert("Could not load audio from URL: " + err.message);
+        });
+      }
+    });
+
+    // 5. Stop Button
+    document.querySelector("#btn-stop").addEventListener("click", function () {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      var engine = getAudioEngine();
+      if (engine) {
+        if (engine.stop) engine.stop();
+        if (engine.stopMicrophone) engine.stopMicrophone();
+      }
+      if (isMicActive) {
+        isMicActive = false;
+        btnMic.classList.remove("mic-active");
+        micLabel.textContent = "Live Mic";
+      }
+      meterFill.style.width = "0%";
+      visemeTag.textContent = "REST";
+      lipStatus.textContent = "Avatar Ready";
+      statusDot.style.background = "#10b981";
+      if (window.unityInstance) {
+        try {
+          window.unityInstance.SendMessage('CH', 'SetExternalLipSync', '0');
+          window.unityInstance.SendMessage('CH', 'OnWebAudioEnded', '');
+        } catch (e) {}
+      }
+    });
+
+    // 6. Fullscreen toggle
+    document.querySelector("#btn-fullscreen").addEventListener("click", function () {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(function () {});
+      } else {
+        document.exitFullscreen().catch(function () {});
+      }
+    });
+
+    // 7. Drag & Drop Files
+    window.addEventListener("dragenter", function (e) {
+      e.preventDefault();
+      dropZone.classList.add("active");
+    });
+    dropZone.addEventListener("dragover", function (e) { e.preventDefault(); });
+    dropZone.addEventListener("dragleave", function (e) {
+      e.preventDefault();
+      dropZone.classList.remove("active");
+    });
+    dropZone.addEventListener("drop", function (e) {
+      e.preventDefault();
+      dropZone.classList.remove("active");
+      var file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) playSelectedFile(file);
+    });
+
+    // 8. Continuous UI Level Meter Loop
+    function updateVisualizer() {
+      requestAnimationFrame(updateVisualizer);
+      var engine = getAudioEngine();
+      if (engine && typeof engine.getAudioLevel === 'function' && (engine.isPlaying() || isMicActive)) {
+        var level = engine.getAudioLevel();
+        var pct = Math.min(100, Math.round(level * 180));
+        meterFill.style.width = pct + "%";
+        if (pct > 40) visemeTag.textContent = "TALK";
+        else if (pct > 10) visemeTag.textContent = "OPEN";
+        else visemeTag.textContent = "REST";
+      }
+    }
+    requestAnimationFrame(updateVisualizer);
+
+    // AudioContext unlock on first user gesture
+    function unlockAudio() {
+      if (window.__eternityAudioCtx && window.__eternityAudioCtx.state === 'suspended') {
+        window.__eternityAudioCtx.resume();
+      }
+    }
+    ['click', 'keydown', 'touchstart'].forEach(function (ev) {
+      window.addEventListener(ev, unlockAudio, { once: true, passive: true });
+    });
+  </script>
+</body>
+</html>
